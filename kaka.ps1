@@ -1,7 +1,28 @@
 # ======================================
 # PowerShell Script: kaka.ps1
-# Tự động gửi POST request định kỳ
+# Tự động gửi POST request định kỳ (qua proxy)
 # ======================================
+
+# Proxy (host:port)
+$ProxyHost = "10.2.170.137"
+$ProxyPort = 8080
+$Proxy = "http://$ProxyHost`:$ProxyPort"
+
+# Nếu proxy yêu cầu auth, uncomment 2 dòng dưới và chỉnh username/password:
+# $proxyUser = "DOMAIN\username"
+# $proxyPass = ConvertTo-SecureString "password" -AsPlainText -Force
+
+# Thiết lập DefaultWebProxy cho phiên hiện tại (ảnh hưởng tới .NET clients)
+$webProxy = New-Object System.Net.WebProxy($Proxy, $true)
+# Nếu proxy cần credential dùng credential hiện tại:
+$webProxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+
+# Nếu proxy dùng user/pass khác, dùng đoạn sau thay thế:
+# $cred = New-Object System.Management.Automation.PSCredential($proxyUser, $proxyPass)
+# $webProxy.Credentials = $cred.GetNetworkCredential()
+
+[System.Net.WebRequest]::DefaultWebProxy = $webProxy
+[System.Net.WebRequest]::DefaultWebProxy.Credentials = $webProxy.Credentials
 
 # URL API
 $Url = "https://fcc14-uat2.tpb.vn/PMReST/obpmrest/payments/singlepayout/"
@@ -47,7 +68,7 @@ $Body = @{
             instrid = "FEB001240606031"
             instdamtccy = "SGD"
             instdamt = 317
-            cdtragtbicfi = "BOTKJPJTXXX"
+            cdragtbicfi = "BOTKJPJTXXX"
             cdtrctry = "JP"
             cdtraccothrid = "/2481314"
             cdtradrline1 = "ADSF"
@@ -86,16 +107,27 @@ $Body = @{
 }
 
 # ======================================
-# Hàm gửi request
+# Hàm gửi request (dùng -Proxy để chắc chắn)
 # ======================================
 function Send-ApiRequest {
     try {
-        $response = Invoke-RestMethod -Uri $Url -Headers $Headers -Method Post -Body ($Body | ConvertTo-Json -Depth 5)
+        $bodyJson = $Body | ConvertTo-Json -Depth 5
+
+        # Nếu proxy cần credential khác, truyền -ProxyCredential $proxyCred (tham khảo chú thích trên)
+        $response = Invoke-RestMethod -Uri $Url -Headers $Headers -Method Post `
+                     -Body $bodyJson -ContentType "application/json" -Proxy $Proxy -ProxyUseDefaultCredentials
+
         Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') Gửi thành công!" -ForegroundColor Green
-        Write-Output $response
+        # Nếu bạn muốn log response vào file, bỏ comment dòng dưới:
+        # $response | Out-File -FilePath "C:\Users\AnhHN\Desktop\kaka_response.log" -Append
+        return $response
     } catch {
         Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') Lỗi khi gửi request:" -ForegroundColor Red
         Write-Host $_.Exception.Message
+        # Thêm thông tin detail nếu có InnerException
+        if ($_.Exception.InnerException) {
+            Write-Host "InnerException: " $_.Exception.InnerException.Message
+        }
     }
 }
 
