@@ -1,3 +1,4 @@
 @echo off
-powershell -ExecutionPolicy Bypass -File "%~dp0kaka.ps1"
+powershell -ExecutionPolicy Bypass -File "%~dp0dup.ps1"
 :: pause
+
